@@ -26,6 +26,5 @@ Performance test results are logged to `performance_test.log`. This file contain
 *   `.gitignore`: Specifies intentionally untracked files that Git should ignore (e.g., log files, generated CSVs, `node_modules`).
 *   `requirements.txt`: Lists the Python dependencies required for the project.
 *   `test_performance.py`: The main script for running performance tests.
-*   `memory-bank/`: Contains documentation and context for the AI model (Cline).
 *   `cline_docs/`: (If applicable) Additional documentation related to the project or Cline's interaction.
 *   `logs/`: May contain performance test log files.
