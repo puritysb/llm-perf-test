@@ -4,3 +4,5 @@ generated_code/
 .venv/
 venv/
 .DS_Store
+node_modules/
+pnpm-lock.yaml
