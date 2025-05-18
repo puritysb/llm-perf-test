@@ -1,0 +1,6 @@
+*.log
+*.csv
+generated_code/
+.venv/
+venv/
+.DS_Store
