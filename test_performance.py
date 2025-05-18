@@ -10,10 +10,11 @@ import os
 import re
 
 # Configuration
-# API_URL = "http://localhost:8082/v1/chat/completions"
-API_URL = "http://localhost:11434/v1/chat/completions"
-# MODEL = "mlx-community/Qwen3-30B-A3B-8bit"
-MODEL = "qwen3:30b-a3b-q8_0"
+MODEL_CONFIGS = [
+    {"api_url": "http://localhost:8082/v1/chat/completions", "model_name": "mlx-community/Qwen3-30B-A3B-8bit"},
+    {"api_url": "http://localhost:11434/v1/chat/completions", "model_name": "qwen3:30b-a3b-q8_0"}
+]
+
 SINGLE_TURN_PROMPT = "Python의 pandas 라이브러리를 사용하여 CSV 파일을 만들고, 데이터프레임의 5행을 출력하는 코드를 작성해주세요. 코드는 반드시 ```python ``` 블록으로 감싸주세요."
 MULTI_TURN_PROMPTS = [
     "이 코드에 데이터프레임의 열 이름을 'num', 'nickname'으로 설정해주세요. 수정된 전체 코드를 ```python ``` 블록으로 다시 제공해주세요.",
@@ -114,25 +115,25 @@ def extract_and_execute_code(code_content, test_identifier):
     return execution_success, execution_output, execution_error
 
 
-def run_inference(messages, max_tokens=5000): # Increased max_tokens significantly
+def run_inference(messages, api_url, model_name, max_tokens=5000):
     """Runs inference with the given messages and returns response, time, and memory change."""
     memory_percent_before = get_system_memory_percent()
     memory_gb_before = get_system_memory_gb()
     start_time = time.time()
 
     request_payload = {
-        "model": MODEL,
+        "model": model_name,
         "messages": messages,
         "max_tokens": max_tokens
     }
-    logging.info(f"Sending request payload: {json.dumps(request_payload, indent=2)}")
+    logging.info(f"Sending request payload to {api_url} for model {model_name}: {json.dumps(request_payload, indent=2)}")
 
     try:
-        response = requests.post(API_URL, json=request_payload)
+        response = requests.post(api_url, json=request_payload)
         response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
         response_json = response.json()
     except requests.exceptions.RequestException as e:
-        logging.error(f"API request failed: {e}")
+        logging.error(f"API request failed for {model_name} at {api_url}: {e}")
         return None, 0, 0, 0, 0, 0, 0 # Added extra 0 for the new return values
 
     end_time = time.time()
@@ -147,16 +148,17 @@ def run_inference(messages, max_tokens=5000): # Increased max_tokens significant
 
     return response_json, response_time, memory_percent_before, memory_percent_after, memory_gb_before, memory_gb_after, token_speed
 
-def test_performance():
-    logging.info(f"=== PERFORMANCE TEST RUN START: {datetime.now()} ===")
+def run_tests_for_model(api_url, model_name):
+    logging.info(f"\n=== Testing Model: {model_name} at {api_url} ===")
     test_results = []
 
     # Single-turn test
     logging.info("\n--- Single-turn Test ---")
     single_turn_messages = [{"role": "user", "content": SINGLE_TURN_PROMPT}]
-    response, total_inference_time, mem_before_percent, mem_after_percent, mem_before_gb, mem_after_gb, token_speed = run_inference(single_turn_messages)
+    response, total_inference_time, mem_before_percent, mem_after_percent, mem_before_gb, mem_after_gb, token_speed = run_inference(single_turn_messages, api_url, model_name)
 
     single_turn_result = {
+        "model": model_name,
         "test_type": "Single-turn",
         "prompt": SINGLE_TURN_PROMPT,
         "success": response is not None,
@@ -179,7 +181,7 @@ def test_performance():
         logging.info(f"Full Response Content (Single-turn):\n{response_content}")
 
         # Attempt to extract and execute code, passing identifier
-        execution_success, execution_output, execution_error = extract_and_execute_code(response_content, "single_turn")
+        execution_success, execution_output, execution_error = extract_and_execute_code(response_content, f"{model_name.replace('/', '_').replace(':', '_')}_single_turn")
         single_turn_result["code_execution_success"] = execution_success
         single_turn_result["code_execution_output"] = execution_output
         single_turn_result["code_execution_error"] = execution_error
@@ -207,9 +209,10 @@ def test_performance():
         # Add the user's message for the current turn to the messages list for inference
         multi_turn_messages.append({"role": "user", "content": turn_prompt})
 
-        response, total_inference_time, mem_before_percent, mem_after_percent, mem_before_gb, mem_after_gb, token_speed = run_inference(multi_turn_messages)
+        response, total_inference_time, mem_before_percent, mem_after_percent, mem_before_gb, mem_after_gb, token_speed = run_inference(multi_turn_messages, api_url, model_name)
 
         turn_result = {
+            "model": model_name,
             "test_type": f"Multi-turn Turn {i+1}",
             "prompt": turn_prompt,
             "success": response is not None,
@@ -236,7 +239,7 @@ def test_performance():
                 multi_turn_messages.append({"role": "assistant", "content": response_content})
 
             # Attempt to extract and execute code, passing identifier
-            execution_success, execution_output, execution_error = extract_and_execute_code(response_content, f"multi_turn_turn_{i+1}")
+            execution_success, execution_output, execution_error = extract_and_execute_code(response_content, f"{model_name.replace('/', '_').replace(':', '_')}_multi_turn_turn_{i+1}")
             turn_result["code_execution_success"] = execution_success
             turn_result["code_execution_output"] = execution_output
             turn_result["code_execution_error"] = execution_error
@@ -247,7 +250,7 @@ def test_performance():
                 logging.error(f"Code Execution Error:\n{execution_error}")
 
         else:
-            logging.error(f"Multi-turn test failed at turn {i+1}. Aborting multi-turn test.")
+            logging.error(f"Multi-turn test failed at turn {i+1} for model {model_name}. Aborting multi-turn test for this model.")
             turn_result["success"] = False
             multi_turn_results.append(turn_result)
             break # Stop if a turn fails
@@ -255,59 +258,82 @@ def test_performance():
         multi_turn_results.append(turn_result)
 
     test_results.extend(multi_turn_results)
+    return test_results
 
-    logging.info(f"\n=== PERFORMANCE TEST RUN END: {datetime.now()} ===")
 
-    # Log Summary to File
-    logging.info(f"\n=== PERFORMANCE TEST RUN SUMMARY: {datetime.now()} ===")
-    logging.info(f"Tested Model: {MODEL}")
-
-    successful_tests = sum(1 for result in test_results if result['success'])
-    total_tests = len(test_results)
-
-    logging.info(f"Total Tests Run: {total_tests}")
-    logging.info(f"Successful Tests: {successful_tests}")
-
-    if successful_tests > 0:
-        avg_inference_time = sum(result['total_inference_time'] for result in test_results if result['success']) / successful_tests
-        avg_token_speed = sum(result['token_speed'] for result in test_results if result['success']) / successful_tests
-        logging.info(f"Average Inference Time (Successful Tests): {avg_inference_time:.2f}s")
-        logging.info(f"Average Token Generation Speed (Successful Tests): {avg_token_speed:.2f} tokens/s")
-
-    # Log per-step times in summary
-    logging.info("\n--- Per-Step Times ---")
-    for result in test_results:
+def summarize_results(all_results):
+    summary = {}
+    for result in all_results:
+        model_name = result['model']
+        if model_name not in summary:
+            summary[model_name] = {
+                "total_tests": 0,
+                "successful_tests": 0,
+                "total_inference_time": 0,
+                "total_token_speed": 0,
+                "per_step_times": []
+            }
+        
+        summary[model_name]["total_tests"] += 1
         if result['success']:
-            logging.info(f"{result['test_type']}: Total Inference Time: {result['total_inference_time']:.2f}s")
+            summary[model_name]["successful_tests"] += 1
+            summary[model_name]["total_inference_time"] += result['total_inference_time']
+            summary[model_name]["total_token_speed"] += result['token_speed']
+            summary[model_name]["per_step_times"].append({
+                "test_type": result['test_type'],
+                "time": result['total_inference_time']
+            })
         else:
-            logging.info(f"{result['test_type']}: Test Failed - Time N/A")
+             summary[model_name]["per_step_times"].append({
+                "test_type": result['test_type'],
+                "time": "N/A"
+            })
+
+
+    logging.info(f"\n=== PERFORMANCE TEST RUN SUMMARY: {datetime.now()} ===")
+    print(f"\n=== PERFORMANCE TEST RUN SUMMARY: {datetime.now()} ===")
+
+    for model_name, data in summary.items():
+        logging.info(f"Tested Model: {model_name}")
+        print(f"Tested Model: {model_name}")
+        logging.info(f"Total Tests Run: {data['total_tests']}")
+        print(f"Total Tests Run: {data['total_tests']}")
+        logging.info(f"Successful Tests: {data['successful_tests']}")
+        print(f"Successful Tests: {data['successful_tests']}")
+
+        if data['successful_tests'] > 0:
+            avg_inference_time = data['total_inference_time'] / data['successful_tests']
+            avg_token_speed = data['total_token_speed'] / data['successful_tests']
+            logging.info(f"Average Inference Time (Successful Tests): {avg_inference_time:.2f}s")
+            print(f"Average Inference Time (Successful Tests): {avg_inference_time:.2f}s")
+            logging.info(f"Average Token Generation Speed (Successful Tests): {avg_token_speed:.2f} tokens/s")
+            print(f"Average Token Generation Speed (Successful Tests): {avg_token_speed:.2f} tokens/s")
+        else:
+            logging.info("Average Inference Time (Successful Tests): N/A")
+            print("Average Inference Time (Successful Tests): N/A")
+            logging.info("Average Token Generation Speed (Successful Tests): N/A")
+            print("Average Token Generation Speed (Successful Tests): N/A")
+
+        logging.info("\n--- Per-Step Times ---")
+        print("\n--- Per-Step Times ---")
+        for step_time in data['per_step_times']:
+            if step_time['time'] != "N/A":
+                 logging.info(f"{step_time['test_type']}: Total Inference Time: {step_time['time']:.2f}s")
+                 print(f"{step_time['test_type']}: Total Inference Time: {step_time['time']:.2f}s")
+            else:
+                 logging.info(f"{step_time['test_type']}: Test Failed - Time N/A")
+                 print(f"{step_time['test_type']}: Test Failed - Time N/A")
+
 
     logging.info(f"=== PERFORMANCE TEST RUN SUMMARY END ===")
-
-    # Print Summary to Console
-    print(f"\n=== PERFORMANCE TEST RUN SUMMARY: {datetime.now()} ===")
-    for result in test_results:
-        print(f"\n--- {result['test_type']} ---")
-        print(f"Prompt: {result['prompt']}")
-        print(f"Success: {result['success']}")
-        if result['success']:
-            print(f"Total Inference Time: {result['total_inference_time']:.2f}s")
-            # Note: First token generation time requires streaming support from the API.
-            # This script measures total inference time.
-            print(f"System Memory Usage Before: {result['mem_before_gb']:.2f} GB ({result['mem_before_percent']:.2f}%)")
-            print(f"System Memory Usage After: {result['mem_after_gb']:.2f} GB ({result['mem_after_percent']:.2f}%)")
-            print(f"Token generation speed: {result['token_speed']:.2f} tokens/s")
-            if result["code_execution_success"] is not None:
-                 print(f"Code Execution Success: {result['code_execution_success']}")
-                 if result["code_execution_output"]:
-                     print(f"Code Execution Output:\n{result['code_execution_output']}")
-                 if result["code_execution_error"]:
-                     print(f"Code Execution Error:\n{result['code_execution_error']}")
-        else:
-            print("Test Failed.")
-
-    print(f"\n=== PERFORMANCE TEST RUN SUMMARY END ===")
+    print(f"=== PERFORMANCE TEST RUN SUMMARY END ===")
 
 
 if __name__ == "__main__":
-    test_performance()
+    all_test_results = []
+    logging.info(f"=== PERFORMANCE TEST RUN START: {datetime.now()} ===")
+    for config in MODEL_CONFIGS:
+        results = run_tests_for_model(config["api_url"], config["model_name"])
+        all_test_results.extend(results)
+
+    summarize_results(all_test_results)

@@ -28,3 +28,29 @@ Performance test results are logged to `performance_test.log`. This file contain
 *   `test_performance.py`: The main script for running performance tests.
 *   `cline_docs/`: (If applicable) Additional documentation related to the project or Cline's interaction.
 *   `logs/`: May contain performance test log files.
+
+## Benchmark Results
+
+Performance test results for local LLM configurations using mlx-omni-server and Ollama.
+
+### mlx-community/Qwen3-30B-A3B-8bit (via mlx-omni-server at localhost:8082)
+
+*   **Single-turn Test:**
+    *   Total Inference Time: 63.22s
+*   **Multi-turn Test:**
+    *   Turn 1 Inference Time: 10.21s
+    *   Turn 2 Inference Time: 9.01s
+*   **Overall Averages (Successful Tests):**
+    *   Average Inference Time: 27.48s
+    *   Average Token Generation Speed: 43.78 tokens/s
+
+### qwen3:30b-a3b-q8_0 (via Ollama at localhost:11434)
+
+*   **Single-turn Test:**
+    *   Total Inference Time: 120.67s
+*   **Multi-turn Test:**
+    *   Turn 1 Inference Time: 7.65s
+    *   Turn 2 Inference Time: 8.43s
+*   **Overall Averages (Successful Tests):**
+    *   Average Inference Time: 45.58s
+    *   Average Token Generation Speed: 37.57 tokens/s
