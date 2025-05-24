@@ -26,9 +26,6 @@ Performance test results are logged to `performance_test.log`. This file contain
 *   `.gitignore`: Specifies intentionally untracked files that Git should ignore (e.g., log files, generated CSVs, `node_modules`).
 *   `requirements.txt`: Lists the Python dependencies required for the project.
 *   `test_performance.py`: The main script for running performance tests.
-*   `cline_docs/`: (If applicable) Additional documentation related to the project or Cline's interaction.
-*   `logs/`: May contain performance test log files.
-
 ## Benchmark Results
 
 Performance test results for local LLM configurations using mlx-omni-server and Ollama.
