@@ -1,6 +1,10 @@
 # LLM Performance Test
 
-This project is designed to perform performance tests on Language Models (LLMs).
+> **This project is no longer maintained.** Archived for reference.
+
+---
+
+Mac Studio 환경에서 로컬 LLM 성능을 벤치마크하는 테스트 도구입니다.
 
 ## Project Setup and Execution
 
