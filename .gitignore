@@ -5,3 +5,4 @@ generated_code/
 venv/
 .DS_Store
 results/
+node_modules/
